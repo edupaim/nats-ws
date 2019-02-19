@@ -1,4 +1,0 @@
-package: .
-import: []
-testImport:
-- package: testing
