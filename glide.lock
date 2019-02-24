@@ -1,0 +1,22 @@
+hash: 7767733b48c6cb2146f65b881a1c1cfe8770f37f345f932bcbc56477a86bdaa6
+updated: 2019-02-23T20:50:16.542582215-03:00
+imports:
+- name: github.com/gin-gonic/gin
+  version: b869fe1415e4b9eb52f247441830d502aece2d4d
+- name: github.com/nats-io/go-nats
+  version: 70fe06cee50d4b6f98248d9675fb55f2a3aa7228
+  subpackages:
+  - encoders/builtin
+  - util
+- name: gopkg.in/olahol/melody.v1
+  version: d521390733761fe1db13de575c253afd5c743085
+testImports:
+- name: github.com/nats-io/nkeys
+  version: 1546a3320a8f195a5b5c84aef8309377c2e411d5
+- name: github.com/nats-io/nuid
+  version: 3024a71c3cbe30667286099921591e6fcc328230
+- name: golang.org/x/crypto
+  version: 74369b46fc6756741c016591724fd1cb8e26845f
+  subpackages:
+  - ed25519
+  - ed25519/internal/edwards25519
