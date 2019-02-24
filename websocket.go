@@ -11,27 +11,35 @@ type IWebsocket interface {
 	HandleWSRequest(writer http.ResponseWriter, request *http.Request) error
 }
 
-type Websocket struct {
+type NatsWebsocket struct {
 	melody         *melody.Melody
 	currentClients map[*melody.Session]*nats.Subscription
 	nc             *nats.Conn
 }
 
-func NewWebsocket(nc *nats.Conn) *Websocket {
-	websocket := Websocket{
+func NewNatsWebsocket(nc *nats.Conn) *NatsWebsocket {
+	websocket := NatsWebsocket{
 		nc:             nc,
 		currentClients: make(map[*melody.Session]*nats.Subscription),
 		melody:         melody.New(),
 	}
-	websocket.melody.HandleMessage(websocket.HandleMessage)
+	websocket.melody.HandleMessage(websocket.handleMessage)
+	websocket.melody.HandleDisconnect(websocket.handleDisconnect)
 	return &websocket
 }
 
-func (ws *Websocket) HandleWSRequest(writer http.ResponseWriter, request *http.Request) error {
+func (ws *NatsWebsocket) HandleWSRequest(writer http.ResponseWriter, request *http.Request) error {
 	return ws.melody.HandleRequest(writer, request)
 }
 
-func (ws *Websocket) HandleMessage(s *melody.Session, msg []byte) {
+func (ws *NatsWebsocket) handleDisconnect(session *melody.Session) {
+	_, ok := ws.currentClients[session]
+	if ok {
+		delete(ws.currentClients, session)
+	}
+}
+
+func (ws *NatsWebsocket) handleMessage(s *melody.Session, msg []byte) {
 	log.Println("receive ws msg", string(msg))
 	msgWs := WebSocketMessage{}
 	err := msgWs.UnmarshalJSON(msg)
@@ -46,7 +54,7 @@ func (ws *Websocket) HandleMessage(s *melody.Session, msg []byte) {
 	}
 }
 
-func (ws *Websocket) handleUnsubscribeMessage(s *melody.Session) {
+func (ws *NatsWebsocket) handleUnsubscribeMessage(s *melody.Session) {
 	log.Println("is unsubscribe msg")
 	subs, ok := ws.currentClients[s]
 	if !ok {
@@ -61,7 +69,7 @@ func (ws *Websocket) handleUnsubscribeMessage(s *melody.Session) {
 	log.Println("unsubscribe client")
 }
 
-func (ws *Websocket) handleSubscribeMessage(s *melody.Session, msgWs WebSocketMessage) {
+func (ws *NatsWebsocket) handleSubscribeMessage(s *melody.Session, msgWs WebSocketMessage) {
 	log.Println("is subscribe msg")
 	_, ok := ws.currentClients[s]
 	if ok {
@@ -89,11 +97,4 @@ func (ws *Websocket) handleSubscribeMessage(s *melody.Session, msgWs WebSocketMe
 		panic(err)
 	}
 	log.Println("register subscribe")
-}
-
-func (ws *Websocket) HandleDisconnect(session *melody.Session) {
-	_, ok := ws.currentClients[session]
-	if ok {
-		delete(ws.currentClients, session)
-	}
 }

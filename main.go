@@ -23,7 +23,7 @@ func (app *Application) RunApplication() {
 	if err != nil {
 		panic(err)
 	}
-	ws := NewWebsocket(nc)
+	ws := NewNatsWebsocket(nc)
 	server := NewHttpServer(ws)
 	err = server.RunServer()
 	if err != nil {
