@@ -6,6 +6,7 @@ import (
 )
 
 type IHttpServer interface {
+	RunServer() error
 }
 
 type HttpServer struct {
