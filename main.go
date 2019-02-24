@@ -54,11 +54,10 @@ func (app *Application) RunApplication() {
 			app.currentClients[s] = subs
 		case ActionUnsubscribe:
 			subs, ok := app.currentClients[s]
-			if !ok {
-				return
+			if ok {
+				_ = subs.Unsubscribe()
+				delete(app.currentClients, s)
 			}
-			_ = subs.Unsubscribe()
-			delete(app.currentClients, s)
 		}
 	})
 	m.HandleConnect(func(session *melody.Session) {
@@ -66,10 +65,13 @@ func (app *Application) RunApplication() {
 	})
 	m.HandleDisconnect(func(session *melody.Session) {
 		_, ok := app.currentClients[session]
-		if !ok {
-			return
+		if ok {
+			delete(app.currentClients, session)
 		}
-		delete(app.currentClients, session)
+		_, ok = activeSessions[session]
+		if ok {
+			delete(activeSessions, session)
+		}
 	})
 	err = r.Run(":5000")
 	if err != nil {
