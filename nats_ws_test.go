@@ -10,10 +10,34 @@ import (
 	"time"
 )
 
+const subject = "subject"
+const queueMsg1 = "queueMsg"
+const queueMsg2 = "queueMsg2"
+
 func TestRunApplication(t *testing.T) {
 	app := NewApplication()
 	go app.RunApplication()
 	time.Sleep(5 * time.Millisecond)
+	c := connectClientToWebsocket()
+	defer c.Close()
+	receivedMsgChan := receiveMsgFromWebsocket(c)
+	nc := connectOnNats()
+	sendSubscribeWSMSg(c, subject)
+	assertReceiveSubscribeSuccessWSMessage(receivedMsgChan)
+	publishQueueMsg(nc, subject, queueMsg1)
+	assertReceiveNatsWSMessage(receivedMsgChan, queueMsg1)
+	publishQueueMsg(nc, subject, queueMsg2)
+	assertReceiveNatsWSMessage(receivedMsgChan, queueMsg2)
+	sendSubscribeWSMSg(c, subject)
+	publishQueueMsg(nc, subject, queueMsg1)
+	assertReceiveNatsWSMessage(receivedMsgChan, queueMsg1)
+	assertNotReceiveWSMSg(receivedMsgChan)
+	sendUnsubscribeWSMsg(c, subject)
+	publishQueueMsg(nc, subject, queueMsg1)
+	assertNotReceiveWSMSg(receivedMsgChan)
+}
+
+func connectClientToWebsocket() *websocket.Conn {
 	addr := flag.String("addr", "localhost:5000", "http service address")
 	u := url.URL{Scheme: "ws", Host: *addr, Path: "/ws"}
 	log.Printf("connecting to %s", u.String())
@@ -21,13 +45,10 @@ func TestRunApplication(t *testing.T) {
 	if err != nil {
 		panic(err)
 	}
-	defer c.Close()
-	wsMsg := WebSocketMessage{Action: ActionSubscribe, Message: "subject"}
-	jsonMsg, err := wsMsg.MarshalJSON()
-	err = c.WriteMessage(websocket.TextMessage, jsonMsg)
-	if err != nil {
-		panic(err)
-	}
+	return c
+}
+
+func receiveMsgFromWebsocket(c *websocket.Conn) chan []byte {
 	receivedMsgChan := make(chan []byte)
 	go func(c *websocket.Conn, msgPointer chan []byte) {
 		for {
@@ -36,35 +57,71 @@ func TestRunApplication(t *testing.T) {
 				return
 			}
 			msgPointer <- msg
+			println("websocket client receive msg:", string(msg))
 		}
 	}(c, receivedMsgChan)
-	nc, _ := nats.Connect(nats.DefaultURL)
-	err = nc.Publish("subject", []byte("queueMsg"))
+	return receivedMsgChan
+}
+
+func connectOnNats() *nats.Conn {
+	nc, err := nats.Connect(nats.DefaultURL)
 	if err != nil {
 		panic(err)
 	}
-	receivedMsg := <-receivedMsgChan
-	if string(receivedMsg) != "queueMsg" {
-		panic(`receivedMsg is not equal "queueMsg"`)
-	}
-	err = nc.Publish("subject", []byte("queueMsg2"))
-	if err != nil {
-		panic(err)
-	}
-	receivedMsg = <-receivedMsgChan
-	if string(receivedMsg) != "queueMsg2" {
-		panic(`receivedMsg is not equal "queueMsg2"`)
-	}
-	wsMsg = WebSocketMessage{Action: ActionUnsubscribe, Message: "subject"}
-	jsonMsg, err = wsMsg.MarshalJSON()
+	return nc
+}
+
+func sendUnsubscribeWSMsg(c *websocket.Conn, subject string) {
+	wsMsg := WebSocketMessage{Action: ActionUnsubscribe, Message: subject}
+	jsonMsg, err := wsMsg.MarshalJSON()
 	err = c.WriteMessage(websocket.TextMessage, jsonMsg)
 	if err != nil {
 		panic(err)
 	}
+}
+
+func assertNotReceiveWSMSg(receivedMsgChan chan []byte) {
 	select {
-	case receivedMsg = <-receivedMsgChan:
-		panic("client receive a msg")
+	case _ = <-receivedMsgChan:
+		panic("client receive msg")
 	case <-time.After(500 * time.Millisecond):
-		return
+	}
+}
+
+func sendSubscribeWSMSg(c *websocket.Conn, subject string) {
+	wsMsg := WebSocketMessage{Action: ActionSubscribe, Message: subject}
+	jsonMsg, err := wsMsg.MarshalJSON()
+	if err != nil {
+		panic(err)
+	}
+	err = c.WriteMessage(websocket.TextMessage, jsonMsg)
+	if err != nil {
+		panic(err)
+	}
+}
+
+func assertReceiveNatsWSMessage(receivedMsgChan chan []byte, msg string) {
+	receivedMsg := <-receivedMsgChan
+	if string(receivedMsg) != msg {
+		panic(`receivedMsg is not equal "` + msg + `"`)
+	}
+}
+
+func assertReceiveSubscribeSuccessWSMessage(receivedMsgChan chan []byte) {
+	wsMsg := WebSocketMessage{Action: ActionSubscribeSuccess}
+	jsonMsg, err := wsMsg.MarshalJSON()
+	if err != nil {
+		panic(err)
+	}
+	receivedMsg := <-receivedMsgChan
+	if string(receivedMsg) != string(jsonMsg) {
+		panic(`receivedMsg is not equal "` + string(jsonMsg) + `"`)
+	}
+}
+
+func publishQueueMsg(nc *nats.Conn, subject, msg string) {
+	err := nc.Publish(subject, []byte(msg))
+	if err != nil {
+		panic(err)
 	}
 }

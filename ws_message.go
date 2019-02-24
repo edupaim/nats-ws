@@ -13,8 +13,9 @@ type WebSocketMessage struct {
 type Action string
 
 const (
-	ActionSubscribe   = "subscribe"
-	ActionUnsubscribe = "unsubscribe"
+	ActionSubscribe        = "subscribe"
+	ActionSubscribeSuccess = "subscribe/success"
+	ActionUnsubscribe      = "unsubscribe"
 )
 
 func (message *WebSocketMessage) MarshalJSON() ([]byte, error) {
