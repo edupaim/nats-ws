@@ -25,7 +25,6 @@ func (app *Application) RunApplication() {
 	if err != nil {
 		panic(err)
 	}
-	activeSessions := make(map[*melody.Session]bool)
 	r := gin.Default()
 	m := melody.New()
 	r.GET("/ws", func(c *gin.Context) {
@@ -61,16 +60,11 @@ func (app *Application) RunApplication() {
 		}
 	})
 	m.HandleConnect(func(session *melody.Session) {
-		activeSessions[session] = true
 	})
 	m.HandleDisconnect(func(session *melody.Session) {
 		_, ok := app.currentClients[session]
 		if ok {
 			delete(app.currentClients, session)
-		}
-		_, ok = activeSessions[session]
-		if ok {
-			delete(activeSessions, session)
 		}
 	})
 	err = r.Run(":5000")
