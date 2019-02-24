@@ -64,7 +64,7 @@ func TestRunApplication(t *testing.T) {
 	select {
 	case receivedMsg = <-receivedMsgChan:
 		panic("client receive a msg")
-	case <-time.After(1 * time.Second):
+	case <-time.After(500 * time.Millisecond):
 		return
 	}
 }

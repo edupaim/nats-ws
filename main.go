@@ -4,6 +4,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/nats-io/go-nats"
 	"gopkg.in/olahol/melody.v1"
+	"net/http"
 )
 
 func main() {
@@ -30,11 +31,10 @@ func (app *Application) RunApplication() {
 	r.GET("/ws", func(c *gin.Context) {
 		err := m.HandleRequest(c.Writer, c.Request)
 		if err != nil {
-			println("error:", err.Error())
+			c.Writer.WriteHeader(http.StatusInternalServerError)
 		}
 	})
 	m.HandleMessage(func(s *melody.Session, msg []byte) {
-		println(string(msg), s)
 		msgWs := WebSocketMessage{}
 		err := msgWs.UnmarshalJSON(msg)
 		if err != nil {
@@ -42,7 +42,6 @@ func (app *Application) RunApplication() {
 		}
 		switch msgWs.Action {
 		case ActionSubscribe:
-			println("websocket client bind to", msgWs.Message)
 			subs, err := nc.Subscribe(msgWs.Message, func(msg *nats.Msg) {
 				err = s.Write(msg.Data)
 				if err != nil {
@@ -59,10 +58,18 @@ func (app *Application) RunApplication() {
 				return
 			}
 			_ = subs.Unsubscribe()
+			delete(app.currentClients, s)
 		}
 	})
 	m.HandleConnect(func(session *melody.Session) {
 		activeSessions[session] = true
+	})
+	m.HandleDisconnect(func(session *melody.Session) {
+		_, ok := app.currentClients[session]
+		if !ok {
+			return
+		}
+		delete(app.currentClients, session)
 	})
 	err = r.Run(":5000")
 	if err != nil {
