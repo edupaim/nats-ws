@@ -15,25 +15,35 @@ const queueMsg1 = "queueMsg"
 const queueMsg2 = "queueMsg2"
 
 func TestRunApplication(t *testing.T) {
+	//Initialize Application
 	app := NewApplication()
 	go app.RunApplication()
 	time.Sleep(5 * time.Millisecond)
+	//Connect websocket client
 	c := connectClientToWebsocket()
 	defer c.Close()
 	receivedMsgChan := receiveMsgFromWebsocket(c)
-	nc := connectOnNats()
+	//Send subscribe message and expect receive success subscribe message
 	sendSubscribeWSMSg(c, subject)
 	time.Sleep(5 * time.Millisecond)
 	assertReceiveSubscribeSuccessWSMessage(receivedMsgChan)
+	//Connect to nats and publish message
+	nc := connectOnNats()
 	publishQueueMsg(nc, subject, queueMsg1)
+	//Expect to receive message
 	assertReceiveNatsWSMessage(receivedMsgChan, queueMsg1)
+	//Publish and expect receive message
 	publishQueueMsg(nc, subject, queueMsg2)
 	assertReceiveNatsWSMessage(receivedMsgChan, queueMsg2)
+	//Send subscribe message again
 	sendSubscribeWSMSg(c, subject)
+	//Publish message and expect receibe only 1 message
 	publishQueueMsg(nc, subject, queueMsg1)
 	assertReceiveNatsWSMessage(receivedMsgChan, queueMsg1)
 	assertNotReceiveWSMSg(receivedMsgChan)
+	//Send unsubscribe message
 	sendUnsubscribeWSMsg(c, subject)
+	//Publish and expect not receive message
 	publishQueueMsg(nc, subject, queueMsg1)
 	assertNotReceiveWSMSg(receivedMsgChan)
 }

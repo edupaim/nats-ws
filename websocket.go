@@ -21,10 +21,9 @@ func NewWebsocket(nc *nats.Conn) *Websocket {
 	websocket := Websocket{
 		nc:             nc,
 		currentClients: make(map[*melody.Session]*nats.Subscription),
+		melody:         melody.New(),
 	}
-	m := melody.New()
-	m.HandleMessage(websocket.HandleMessage)
-	websocket.melody = m
+	websocket.melody.HandleMessage(websocket.HandleMessage)
 	return &websocket
 }
 
@@ -41,47 +40,55 @@ func (ws *Websocket) HandleMessage(s *melody.Session, msg []byte) {
 	}
 	switch msgWs.Action {
 	case ActionSubscribe:
-		log.Println("is subscribe msg")
-		_, ok := ws.currentClients[s]
-		if ok {
-			return
-		}
-		subs, err := ws.nc.Subscribe(msgWs.Message, func(msg *nats.Msg) {
-			log.Println("subscribe receive a msg")
-			err = s.Write(msg.Data)
-			if err != nil {
-				panic(err)
-			}
-			log.Println("write msg on ws")
-		})
-		if err != nil {
-			panic(err)
-		}
-		ws.currentClients[s] = subs
-		wsMsg := WebSocketMessage{Action: ActionSubscribeSuccess}
-		jsonMsg, err := wsMsg.MarshalJSON()
-		if err != nil {
-			panic(err)
-		}
-		err = s.Write(jsonMsg)
-		if err != nil {
-			panic(err)
-		}
-		log.Println("register subscribe")
+		ws.handleSubscribeMessage(s, msgWs)
 	case ActionUnsubscribe:
-		log.Println("is unsubscribe msg")
-		subs, ok := ws.currentClients[s]
-		if !ok {
-			log.Println("client not subscribe")
-			return
-		}
-		err = subs.Unsubscribe()
+		ws.handleUnsubscribeMessage(s)
+	}
+}
+
+func (ws *Websocket) handleUnsubscribeMessage(s *melody.Session) {
+	log.Println("is unsubscribe msg")
+	subs, ok := ws.currentClients[s]
+	if !ok {
+		log.Println("client not subscribe")
+		return
+	}
+	err := subs.Unsubscribe()
+	if err != nil {
+		panic(err)
+	}
+	delete(ws.currentClients, s)
+	log.Println("unsubscribe client")
+}
+
+func (ws *Websocket) handleSubscribeMessage(s *melody.Session, msgWs WebSocketMessage) {
+	log.Println("is subscribe msg")
+	_, ok := ws.currentClients[s]
+	if ok {
+		return
+	}
+	subs, err := ws.nc.Subscribe(msgWs.Message, func(msg *nats.Msg) {
+		log.Println("subscribe receive a msg")
+		err := s.Write(msg.Data)
 		if err != nil {
 			panic(err)
 		}
-		delete(ws.currentClients, s)
-		log.Println("unsubscribe client")
+		log.Println("write msg on ws")
+	})
+	if err != nil {
+		panic(err)
 	}
+	ws.currentClients[s] = subs
+	wsMsg := WebSocketMessage{Action: ActionSubscribeSuccess}
+	jsonMsg, err := wsMsg.MarshalJSON()
+	if err != nil {
+		panic(err)
+	}
+	err = s.Write(jsonMsg)
+	if err != nil {
+		panic(err)
+	}
+	log.Println("register subscribe")
 }
 
 func (ws *Websocket) HandleDisconnect(session *melody.Session) {
