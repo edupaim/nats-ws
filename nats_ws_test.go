@@ -23,6 +23,7 @@ func TestRunApplication(t *testing.T) {
 	receivedMsgChan := receiveMsgFromWebsocket(c)
 	nc := connectOnNats()
 	sendSubscribeWSMSg(c, subject)
+	time.Sleep(5 * time.Millisecond)
 	assertReceiveSubscribeSuccessWSMessage(receivedMsgChan)
 	publishQueueMsg(nc, subject, queueMsg1)
 	assertReceiveNatsWSMessage(receivedMsgChan, queueMsg1)
